@@ -1,0 +1,786 @@
+From f9d129e3d5e2fea76a2f026811c1cb89a52d0d8d Mon Sep 17 00:00:00 2001
+From: moo <48740106+moom0o@users.noreply.github.com>
+Date: Fri, 23 Apr 2021 18:55:32 -0400
+Subject: [PATCH] Durian config and command
+
+
+diff --git a/src/main/java/me/moomoo/durian/DurianCommand.java b/src/main/java/me/moomoo/durian/DurianCommand.java
+new file mode 100644
+index 00000000..e813b903
+--- /dev/null
++++ b/src/main/java/me/moomoo/durian/DurianCommand.java
+@@ -0,0 +1,67 @@
++package me.moomoo.durian;
++
++import net.minecraft.server.CommandAbstract;
++import net.minecraft.server.MinecraftServer;
++import org.bukkit.ChatColor;
++import org.bukkit.Location;
++import org.bukkit.command.Command;
++import org.bukkit.command.CommandSender;
++
++import java.io.File;
++import java.util.Collections;
++import java.util.List;
++import java.util.Locale;
++
++public class DurianCommand extends Command {
++
++    public DurianCommand(String name) {
++        super(name);
++        this.description = "Durian related commands";
++        this.usageMessage = "/durian [reload | version]";
++        this.setPermission("bukkit.command.durian");
++    }
++
++    @Override
++    public List<String> tabComplete(CommandSender sender, String alias, String[] args, Location location) throws IllegalArgumentException {
++        if (args.length <= 1)
++            return CommandAbstract.getListMatchingLast(args, "reload", "version");
++        return Collections.emptyList();
++    }
++
++    @Override
++    public boolean execute(CommandSender sender, String commandLabel, String[] args) {
++        if (!testPermission(sender)) return true;
++
++        if (args.length == 0) {
++            sender.sendMessage(ChatColor.RED + "Usage: " + usageMessage);
++            return false;
++        }
++
++        switch (args[0].toLowerCase(Locale.ENGLISH)) {
++            case "reload":
++                doReload(sender);
++                break;
++            case "ver":
++            case "version":
++                org.bukkit.Bukkit.getServer().getCommandMap().getCommand("version").execute(sender, commandLabel, new String[0]);
++                break;
++            default:
++                sender.sendMessage(ChatColor.RED + "Usage: " + usageMessage);
++                return false;
++        }
++
++        return true;
++    }
++
++    private void doReload(CommandSender sender) {
++        Command.broadcastCommandMessage(sender, ChatColor.RED + "Please note that this command is not supported and may cause issues.");
++        Command.broadcastCommandMessage(sender, ChatColor.RED + "If you encounter any issues please use the /stop command to restart your server.");
++
++        MinecraftServer console = MinecraftServer.getServer();
++        me.moomoo.durian.DurianConfig.init((File) console.options.valueOf("durian-settings"));
++
++        console.server.reloadCount++;
++
++        Command.broadcastCommandMessage(sender, ChatColor.GREEN + "Durian config reload complete.");
++    }
++}
+diff --git a/src/main/java/me/moomoo/durian/DurianConfig.java b/src/main/java/me/moomoo/durian/DurianConfig.java
+new file mode 100644
+index 00000000..bb47ec66
+--- /dev/null
++++ b/src/main/java/me/moomoo/durian/DurianConfig.java
+@@ -0,0 +1,191 @@
++package me.moomoo.durian;
++
++import com.google.common.base.Throwables;
++import net.minecraft.server.MinecraftServer;
++import org.bukkit.Bukkit;
++import org.bukkit.command.Command;
++import org.bukkit.configuration.InvalidConfigurationException;
++import org.bukkit.configuration.file.YamlConfiguration;
++
++import java.io.File;
++import java.io.IOException;
++import java.lang.reflect.InvocationTargetException;
++import java.lang.reflect.Method;
++import java.lang.reflect.Modifier;
++import java.util.HashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.concurrent.TimeUnit;
++import java.util.logging.Level;
++import java.util.regex.Pattern;
++
++public class DurianConfig {
++
++    private static File CONFIG_FILE;
++    private static final String HEADER = "This is the main configuration file for Durian.\n"
++        + "As you can see, there's some things to configure. Some options may impact gameplay, so use\n"
++        + "with caution, and make sure you know what each option does before configuring.\n"
++        + "\n"
++        + "If you need help with the configuration or have any questions related to Durian,\n"
++        + "join us in our Discord channel.\n"
++        + "\n"
++        + "DISCORD: #durian @ https://discord.gg/T2HQRrNp\n";
++    /*========================================================================*/
++    public static YamlConfiguration config;
++    static int version;
++    static Map<String, Command> commands;
++    private static boolean verbose;
++    /*========================================================================*/
++    private static boolean metricsStarted;
++
++    public static void init(File configFile) {
++        CONFIG_FILE = configFile;
++        config = new YamlConfiguration();
++        try {
++            config.load(CONFIG_FILE);
++        } catch (IOException ex) {
++        } catch (InvalidConfigurationException ex) {
++            Bukkit.getLogger().log(Level.SEVERE, "Could not load durian.yml, please correct your syntax errors", ex);
++            throw Throwables.propagate(ex);
++        }
++        config.options().header(HEADER);
++        config.options().copyDefaults(true);
++        verbose = getBoolean("verbose", false);
++
++        commands = new HashMap<String, Command>();
++        commands.put("durian", new DurianCommand("durian"));
++
++        version = getInt("config-version", 13);
++        set("config-version", 13);
++        readConfig(DurianConfig.class, null);
++    }
++
++    protected static void logError(String s) {
++        Bukkit.getLogger().severe(s);
++    }
++
++    protected static void log(String s) {
++        if (verbose) {
++            Bukkit.getLogger().info(s);
++        }
++    }
++
++    public static void registerCommands() {
++        for (Map.Entry<String, Command> entry : commands.entrySet()) {
++            MinecraftServer.getServer().server.getCommandMap().register(entry.getKey(), "Durian", entry.getValue());
++        }
++    }
++
++    static void readConfig(Class<?> clazz, Object instance) {
++        for (Method method : clazz.getDeclaredMethods()) {
++            if (Modifier.isPrivate(method.getModifiers())) {
++                if (method.getParameterTypes().length == 0 && method.getReturnType() == Void.TYPE) {
++                    try {
++                        method.setAccessible(true);
++                        method.invoke(instance);
++                    } catch (InvocationTargetException ex) {
++                        throw Throwables.propagate(ex.getCause());
++                    } catch (Exception ex) {
++                        Bukkit.getLogger().log(Level.SEVERE, "Error invoking " + method, ex);
++                    }
++                }
++            }
++        }
++
++        try {
++            config.save(CONFIG_FILE);
++        } catch (IOException ex) {
++            Bukkit.getLogger().log(Level.SEVERE, "Could not save " + CONFIG_FILE, ex);
++        }
++    }
++
++    private static final Pattern SPACE = Pattern.compile(" ");
++    private static final Pattern NOT_NUMERIC = Pattern.compile("[^-\\d.]");
++
++    public static int getSeconds(String str) {
++        str = SPACE.matcher(str).replaceAll("");
++        final char unit = str.charAt(str.length() - 1);
++        str = NOT_NUMERIC.matcher(str).replaceAll("");
++        double num;
++        try {
++            num = Double.parseDouble(str);
++        } catch (Exception e) {
++            num = 0D;
++        }
++        switch (unit) {
++            case 'd':
++                num *= (double) 60 * 60 * 24;
++                break;
++            case 'h':
++                num *= (double) 60 * 60;
++                break;
++            case 'm':
++                num *= (double) 60;
++                break;
++            default:
++            case 's':
++                break;
++        }
++        return (int) num;
++    }
++
++    protected static String timeSummary(int seconds) {
++        String time = "";
++
++        if (seconds > 60 * 60 * 24) {
++            time += TimeUnit.SECONDS.toDays(seconds) + "d";
++            seconds %= 60 * 60 * 24;
++        }
++
++        if (seconds > 60 * 60) {
++            time += TimeUnit.SECONDS.toHours(seconds) + "h";
++            seconds %= 60 * 60;
++        }
++
++        if (seconds > 0) {
++            time += TimeUnit.SECONDS.toMinutes(seconds) + "m";
++        }
++        return time;
++    }
++
++    private static void set(String path, Object val) {
++        config.set(path, val);
++    }
++
++    private static boolean getBoolean(String path, boolean def) {
++        config.addDefault(path, def);
++        return config.getBoolean(path, config.getBoolean(path));
++    }
++
++    private static double getDouble(String path, double def) {
++        config.addDefault(path, def);
++        return config.getDouble(path, config.getDouble(path));
++    }
++
++    private static float getFloat(String path, float def) {
++        // TODO: Figure out why getFloat() always returns the default value.
++        return (float) getDouble(path, (double) def);
++    }
++
++    private static int getInt(String path, int def) {
++        config.addDefault(path, def);
++        return config.getInt(path, config.getInt(path));
++    }
++
++    private static <T> List getList(String path, T def) {
++        config.addDefault(path, def);
++        return (List<T>) config.getList(path, config.getList(path));
++    }
++
++    private static String getString(String path, String def) {
++        config.addDefault(path, def);
++        return config.getString(path, config.getString(path));
++    }
++
++    //////////////////////////////////////////////////////////////////////////////////////////////////////////
++    public static boolean testBoolean = true;
++
++    private static void testBoolean() {
++        testBoolean = getBoolean("settings.test-boolean", true);
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/DedicatedServer.java b/src/main/java/net/minecraft/server/DedicatedServer.java
+index 6a8292ce..1891c7a9 100644
+--- a/src/main/java/net/minecraft/server/DedicatedServer.java
++++ b/src/main/java/net/minecraft/server/DedicatedServer.java
+@@ -1,33 +1,23 @@
+ package net.minecraft.server;
+ 
+-import com.google.common.collect.Lists;
++import co.aikar.timings.MinecraftTimings;
+ import com.mojang.authlib.GameProfileRepository;
+ import com.mojang.authlib.minecraft.MinecraftSessionService;
+ import com.mojang.authlib.yggdrasil.YggdrasilAuthenticationService;
+-import java.io.BufferedReader;
++import org.apache.logging.log4j.Level;
++import org.apache.logging.log4j.LogManager;
++import org.apache.logging.log4j.Logger;
++import org.bukkit.craftbukkit.util.Waitable;
++import org.bukkit.event.server.RemoteServerCommandEvent;
++import org.bukkit.event.server.ServerCommandEvent;
++
+ import java.io.File;
+ import java.io.IOException;
+-import java.io.InputStreamReader;
+ import java.net.InetAddress;
+ import java.net.Proxy;
+-import java.nio.charset.StandardCharsets;
+-import java.util.Collections;
+-import java.util.List;
+ import java.util.Random;
+ import java.util.concurrent.TimeUnit;
+ import java.util.regex.Pattern;
+-import org.apache.logging.log4j.LogManager;
+-import org.apache.logging.log4j.Logger;
+-
+-// CraftBukkit start
+-import java.io.PrintStream;
+-import org.apache.logging.log4j.Level;
+-
+-import org.bukkit.craftbukkit.LoggerOutputStream;
+-import co.aikar.timings.MinecraftTimings; // Paper
+-import org.bukkit.event.server.ServerCommandEvent;
+-import org.bukkit.craftbukkit.util.Waitable;
+-import org.bukkit.event.server.RemoteServerCommandEvent;
+ // CraftBukkit end
+ 
+ public class DedicatedServer extends MinecraftServer implements IMinecraftServer {
+@@ -201,6 +191,10 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
+             com.destroystokyo.paper.PaperConfig.registerCommands();
+             com.destroystokyo.paper.VersionHistoryManager.INSTANCE.getClass(); // load version history now
+             // Paper end
++            // Durian start
++            me.moomoo.durian.DurianConfig.init((File) options.valueOf("durian-settings"));
++            me.moomoo.durian.DurianConfig.registerCommands();
++            // Durian end
+ 
+             DedicatedServer.LOGGER.info("Generating keypair");
+             this.a(MinecraftEncryption.b());
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+index 7c82e18b..cdb6121d 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+@@ -1,52 +1,32 @@
+ package org.bukkit.craftbukkit;
+ 
+-import java.awt.image.BufferedImage;
+-import java.io.File;
+-import java.io.FileInputStream;
+-import java.io.FileNotFoundException;
+-import java.io.IOException;
+-import java.io.InputStreamReader;
+-import java.util.ArrayList;
+-import java.util.Arrays;
+-import java.util.Collections;
+-import java.util.HashSet;
+-import java.util.Iterator;
+-import java.util.LinkedHashMap;
+-import java.util.LinkedHashSet;
+-import java.util.List;
+-import java.util.Map;
+-import java.util.Set;
+-import java.util.UUID;
+-import java.util.logging.Level;
+-import java.util.logging.Logger;
+-import java.util.regex.Pattern;
+-
+-import javax.imageio.ImageIO;
+-
++import com.google.common.base.Charsets;
++import com.google.common.base.Function;
++import com.google.common.base.Preconditions;
++import com.google.common.collect.ImmutableList;
++import com.google.common.collect.Iterators;
++import com.google.common.collect.Lists;
++import com.google.common.collect.MapMaker;
++import com.mojang.authlib.GameProfile;
++import io.netty.buffer.ByteBuf;
++import io.netty.buffer.ByteBufOutputStream;
++import io.netty.buffer.Unpooled;
++import io.netty.handler.codec.base64.Base64;
++import net.md_5.bungee.api.chat.BaseComponent;
++import net.minecraft.server.WorldType;
+ import net.minecraft.server.*;
+-
+-import org.bukkit.BanList;
+-import org.bukkit.Bukkit;
+-import org.bukkit.ChatColor;
+-import org.bukkit.GameMode;
+-import org.bukkit.Location;
+-import org.bukkit.OfflinePlayer;
+-import org.bukkit.Server;
+-import org.bukkit.UnsafeValues;
+-import org.bukkit.Warning.WarningState;
++import org.apache.commons.lang.StringUtils;
++import org.apache.commons.lang.Validate;
++import org.bukkit.*;
+ import org.bukkit.World;
++import org.bukkit.Warning.WarningState;
+ import org.bukkit.World.Environment;
+-import org.bukkit.WorldCreator;
+ import org.bukkit.boss.BarColor;
+ import org.bukkit.boss.BarFlag;
+ import org.bukkit.boss.BarStyle;
+ import org.bukkit.boss.BossBar;
+-import org.bukkit.command.Command;
+ import org.bukkit.command.CommandException;
+-import org.bukkit.command.CommandSender;
+-import org.bukkit.command.ConsoleCommandSender;
+-import org.bukkit.command.PluginCommand;
+-import org.bukkit.command.SimpleCommandMap;
++import org.bukkit.command.*;
+ import org.bukkit.configuration.ConfigurationSection;
+ import org.bukkit.configuration.file.YamlConfiguration;
+ import org.bukkit.configuration.serialization.ConfigurationSerialization;
+@@ -56,14 +36,7 @@ import org.bukkit.craftbukkit.command.VanillaCommandWrapper;
+ import org.bukkit.craftbukkit.entity.CraftPlayer;
+ import org.bukkit.craftbukkit.generator.CraftChunkData;
+ import org.bukkit.craftbukkit.help.SimpleHelpMap;
+-import org.bukkit.craftbukkit.inventory.CraftFurnaceRecipe;
+-import org.bukkit.craftbukkit.inventory.CraftInventoryCustom;
+-import org.bukkit.craftbukkit.inventory.CraftItemFactory;
+-import org.bukkit.craftbukkit.inventory.CraftMerchantCustom;
+-import org.bukkit.craftbukkit.inventory.CraftRecipe;
+-import org.bukkit.craftbukkit.inventory.CraftShapedRecipe;
+-import org.bukkit.craftbukkit.inventory.CraftShapelessRecipe;
+-import org.bukkit.craftbukkit.inventory.RecipeIterator;
++import org.bukkit.craftbukkit.inventory.*;
+ import org.bukkit.craftbukkit.map.CraftMapView;
+ import org.bukkit.craftbukkit.metadata.EntityMetadataStore;
+ import org.bukkit.craftbukkit.metadata.PlayerMetadataStore;
+@@ -71,72 +44,45 @@ import org.bukkit.craftbukkit.metadata.WorldMetadataStore;
+ import org.bukkit.craftbukkit.potion.CraftPotionBrewer;
+ import org.bukkit.craftbukkit.scheduler.CraftScheduler;
+ import org.bukkit.craftbukkit.scoreboard.CraftScoreboardManager;
+-import org.bukkit.craftbukkit.util.CraftIconCache;
+-import org.bukkit.craftbukkit.util.CraftMagicNumbers;
+-import org.bukkit.craftbukkit.util.DatFileFilter;
+-import org.bukkit.craftbukkit.util.Versioning;
++import org.bukkit.craftbukkit.util.*;
+ import org.bukkit.craftbukkit.util.permissions.CraftDefaultPermissions;
+ import org.bukkit.entity.Entity;
+ import org.bukkit.entity.Player;
+-import org.bukkit.event.command.UnknownCommandEvent; // Paper
++import org.bukkit.event.command.UnknownCommandEvent;
+ import org.bukkit.event.inventory.InventoryType;
+ import org.bukkit.event.player.PlayerChatTabCompleteEvent;
+ import org.bukkit.event.server.BroadcastMessageEvent;
++import org.bukkit.event.server.TabCompleteEvent;
+ import org.bukkit.event.world.WorldInitEvent;
+ import org.bukkit.event.world.WorldLoadEvent;
+ import org.bukkit.event.world.WorldUnloadEvent;
+ import org.bukkit.generator.ChunkGenerator;
+ import org.bukkit.help.HelpMap;
+-import org.bukkit.inventory.FurnaceRecipe;
+ import org.bukkit.inventory.ItemStack;
+-import org.bukkit.inventory.Merchant;
+-import org.bukkit.inventory.Inventory;
+-import org.bukkit.inventory.InventoryHolder;
+-import org.bukkit.inventory.Recipe;
+-import org.bukkit.inventory.ShapedRecipe;
+-import org.bukkit.inventory.ShapelessRecipe;
++import org.bukkit.inventory.*;
+ import org.bukkit.permissions.Permissible;
+ import org.bukkit.permissions.Permission;
+-import org.bukkit.plugin.Plugin;
+-import org.bukkit.plugin.PluginLoadOrder;
+-import org.bukkit.plugin.PluginManager;
+-import org.bukkit.plugin.ServicesManager;
+-import org.bukkit.plugin.SimplePluginManager;
+-import org.bukkit.plugin.SimpleServicesManager;
++import org.bukkit.plugin.*;
+ import org.bukkit.plugin.java.JavaPluginLoader;
+ import org.bukkit.plugin.messaging.Messenger;
++import org.bukkit.plugin.messaging.StandardMessenger;
+ import org.bukkit.potion.Potion;
+ import org.bukkit.potion.PotionEffectType;
+-import org.bukkit.plugin.messaging.StandardMessenger;
+ import org.bukkit.scheduler.BukkitWorker;
+ import org.bukkit.util.StringUtil;
+ import org.bukkit.util.permissions.DefaultPermissions;
+ import org.yaml.snakeyaml.Yaml;
+ import org.yaml.snakeyaml.constructor.SafeConstructor;
+ import org.yaml.snakeyaml.error.MarkedYAMLException;
+-import org.apache.commons.lang.Validate;
+ 
+-import com.google.common.base.Charsets;
+-import com.google.common.base.Function;
+-import com.google.common.base.Preconditions;
+-import com.google.common.collect.ImmutableList;
+-import com.google.common.collect.Iterators;
+-import com.google.common.collect.Lists;
+-import com.google.common.collect.MapMaker;
+-import com.mojang.authlib.GameProfile;
+-
+-import io.netty.buffer.ByteBuf;
+-import io.netty.buffer.ByteBufOutputStream;
+-import io.netty.buffer.Unpooled;
+-import io.netty.handler.codec.base64.Base64;
+-import org.apache.commons.lang.StringUtils;
+-import org.bukkit.NamespacedKey;
+-import org.bukkit.craftbukkit.util.CraftNamespacedKey;
+-import org.bukkit.event.server.TabCompleteEvent;
+-import net.md_5.bungee.api.chat.BaseComponent;
+-
+-import javax.annotation.Nullable; // Paper
+-import javax.annotation.Nonnull; // Paper
++import javax.annotation.Nonnull;
++import javax.annotation.Nullable;
++import javax.imageio.ImageIO;
++import java.awt.image.BufferedImage;
++import java.io.*;
++import java.util.*;
++import java.util.logging.Level;
++import java.util.logging.Logger;
+ 
+ 
+ public final class CraftServer implements Server {
+@@ -368,7 +314,7 @@ public final class CraftServer implements Server {
+         for (ICommand cmd : commands.values()) {
+             // Spigot start
+             VanillaCommandWrapper wrapper = new VanillaCommandWrapper((CommandAbstract) cmd, LocaleI18n.get(cmd.getUsage(null)));
+-            if (org.spigotmc.SpigotConfig.replaceCommands.contains( wrapper.getName() ) ) {
++            if (org.spigotmc.SpigotConfig.replaceCommands.contains(wrapper.getName())) {
+                 if (first) {
+                     commandMap.register("minecraft", wrapper);
+                 }
+@@ -636,7 +582,7 @@ public final class CraftServer implements Server {
+     // NOTE: Should only be called from DedicatedServer.ah()
+     public boolean dispatchServerCommand(CommandSender sender, ServerCommand serverCommand) {
+         if (sender instanceof Conversable) {
+-            Conversable conversable = (Conversable)sender;
++            Conversable conversable = (Conversable) sender;
+ 
+             if (conversable.isConversing()) {
+                 conversable.acceptConversationInput(serverCommand.command);
+@@ -743,6 +689,7 @@ public final class CraftServer implements Server {
+ 
+         org.spigotmc.SpigotConfig.init((File) console.options.valueOf("spigot-settings")); // Spigot
+         com.destroystokyo.paper.PaperConfig.init((File) console.options.valueOf("paper-settings")); // Paper
++        me.moomoo.durian.DurianConfig.init((File) console.options.valueOf("durian-settings")); // Durian
+         for (WorldServer world : console.worlds) {
+             world.worldData.setDifficulty(difficulty);
+             world.setSpawnFlags(monsters, animals);
+@@ -785,7 +732,8 @@ public final class CraftServer implements Server {
+         while (pollCount < 50 && getScheduler().getActiveWorkers().size() > 0) {
+             try {
+                 Thread.sleep(50);
+-            } catch (InterruptedException e) {}
++            } catch (InterruptedException e) {
++            }
+             pollCount++;
+         }
+ 
+@@ -825,7 +773,7 @@ public final class CraftServer implements Server {
+         }
+     }
+ 
+-    @SuppressWarnings({ "unchecked", "finally" })
++    @SuppressWarnings({"unchecked", "finally"})
+     private void loadCustomPermissions() {
+         File file = new File(configuration.getString("settings.permissions-file"));
+         FileInputStream stream;
+@@ -853,7 +801,8 @@ public final class CraftServer implements Server {
+         } finally {
+             try {
+                 stream.close();
+-            } catch (IOException ex) {}
++            } catch (IOException ex) {
++            }
+         }
+ 
+         if (perms == null) {
+@@ -922,7 +871,8 @@ public final class CraftServer implements Server {
+             converter.convert(name, new IProgressUpdate() {
+                 private long b = System.currentTimeMillis();
+ 
+-                public void a(String s) {}
++                public void a(String s) {
++                }
+ 
+                 public void a(int i) {
+                     if (System.currentTimeMillis() - this.b >= 1000L) {
+@@ -932,7 +882,8 @@ public final class CraftServer implements Server {
+ 
+                 }
+ 
+-                public void c(String s) {}
++                public void c(String s) {
++                }
+             });
+         }
+ 
+@@ -946,7 +897,7 @@ public final class CraftServer implements Server {
+                     break;
+                 }
+             }
+-        } while(used);
++        } while (used);
+         boolean hardcore = false;
+ 
+         IDataManager sdm = new ServerNBTManager(getWorldContainer(), name, true, getHandle().getServer().dataConverterManager);
+@@ -1056,7 +1007,7 @@ public final class CraftServer implements Server {
+         synchronized (RegionFileCache.class) {
+             // RegionFileCache.a should be RegionFileCache.cache
+             Iterator<Map.Entry<File, RegionFile>> i = RegionFileCache.a.entrySet().iterator();
+-            while(i.hasNext()) {
++            while (i.hasNext()) {
+                 Map.Entry<File, RegionFile> entry = i.next();
+                 File child = entry.getKey().getAbsoluteFile();
+                 while (child != null) {
+@@ -1356,8 +1307,8 @@ public final class CraftServer implements Server {
+         GameProfile profile;
+         // Only fetch an online UUID in online mode
+         if (MinecraftServer.getServer().getOnlineMode()
+-                || (org.spigotmc.SpigotConfig.bungee && com.destroystokyo.paper.PaperConfig.bungeeOnlineMode)) {
+-            profile = console.getUserCache().getProfile( name );
++            || (org.spigotmc.SpigotConfig.bungee && com.destroystokyo.paper.PaperConfig.bungeeOnlineMode)) {
++            profile = console.getUserCache().getProfile(name);
+         } else {
+             // Make an OfflinePlayer using an offline mode UUID since the name has no profile
+             profile = new GameProfile(UUID.nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes(Charsets.UTF_8)), name);
+@@ -1370,17 +1321,17 @@ public final class CraftServer implements Server {
+     @Deprecated
+     public OfflinePlayer getOfflinePlayer(String name) {
+         Validate.notNull(name, "Name cannot be null");
+-        com.google.common.base.Preconditions.checkArgument( !org.apache.commons.lang.StringUtils.isBlank( name ), "Name cannot be blank" ); // Spigot
++        com.google.common.base.Preconditions.checkArgument(!org.apache.commons.lang.StringUtils.isBlank(name), "Name cannot be blank"); // Spigot
+ 
+         OfflinePlayer result = getPlayerExact(name);
+         if (result == null) {
+             // Spigot Start
+             GameProfile profile = null;
+             // Only fetch an online UUID in online mode
+-            if ( MinecraftServer.getServer().getOnlineMode()
+-                    || (org.spigotmc.SpigotConfig.bungee && com.destroystokyo.paper.PaperConfig.bungeeOnlineMode)) // Paper - Handle via setting
++            if (MinecraftServer.getServer().getOnlineMode()
++                || (org.spigotmc.SpigotConfig.bungee && com.destroystokyo.paper.PaperConfig.bungeeOnlineMode)) // Paper - Handle via setting
+             {
+-                profile = console.getUserCache().getProfile( name );
++                profile = console.getUserCache().getProfile(name);
+             }
+             // Spigot end
+             if (profile == null) {
+@@ -1447,7 +1398,7 @@ public final class CraftServer implements Server {
+ 
+         for (JsonListEntry entry : playerList.getProfileBans().getValues()) {
+             result.add(getOfflinePlayer((GameProfile) entry.getKey()));
+-        }        
++        }
+ 
+         return result;
+     }
+@@ -1456,12 +1407,12 @@ public final class CraftServer implements Server {
+     public BanList getBanList(BanList.Type type) {
+         Validate.notNull(type, "Type cannot be null");
+ 
+-        switch(type){
+-        case IP:
+-            return new CraftIpBanList(playerList.getIPBans());
+-        case NAME:
+-        default:
+-            return new CraftProfileBanList(playerList.getProfileBans());
++        switch (type) {
++            case IP:
++                return new CraftIpBanList(playerList.getIPBans());
++            case NAME:
++            default:
++                return new CraftProfileBanList(playerList.getProfileBans());
+         }
+     }
+ 
+@@ -1671,7 +1622,7 @@ public final class CraftServer implements Server {
+         } else {
+             offers = tabCompleteChat(player, message);
+         }
+-        
++
+         TabCompleteEvent tabEvent = new TabCompleteEvent(player, message, offers, message.startsWith("/") || forceCommand, pos != null ? MCUtil.toLocation(((CraftWorld) player.getWorld()).getHandle(), pos) : null); // Paper
+         getPluginManager().callEvent(tabEvent);
+ 
+@@ -1680,8 +1631,7 @@ public final class CraftServer implements Server {
+ 
+     public List<String> tabCompleteCommand(Player player, String message, BlockPosition pos) {
+         // Spigot Start
+-		if ( (org.spigotmc.SpigotConfig.tabComplete < 0 || message.length() <= org.spigotmc.SpigotConfig.tabComplete) && !message.contains( " " ) )
+-        {
++        if ((org.spigotmc.SpigotConfig.tabComplete < 0 || message.length() <= org.spigotmc.SpigotConfig.tabComplete) && !message.contains(" ")) {
+             return ImmutableList.of();
+         }
+         // Spigot End
+@@ -1835,39 +1785,34 @@ public final class CraftServer implements Server {
+     // Paper - Add getTPS API - Further improve tick loop
+     @Override
+     public double[] getTPS() {
+-        return new double[] {
+-                MinecraftServer.getServer().tps1.getAverage(),
+-                MinecraftServer.getServer().tps5.getAverage(),
+-                MinecraftServer.getServer().tps15.getAverage()
++        return new double[]{
++            MinecraftServer.getServer().tps1.getAverage(),
++            MinecraftServer.getServer().tps5.getAverage(),
++            MinecraftServer.getServer().tps15.getAverage()
+         };
+     }
+     // Paper end
+ 
+-    private final Spigot spigot = new Spigot()
+-    {
++    private final Spigot spigot = new Spigot() {
+ 
+         @Deprecated
+         @Override
+-        public YamlConfiguration getConfig()
+-        {
++        public YamlConfiguration getConfig() {
+             return org.spigotmc.SpigotConfig.config;
+         }
+ 
+         @Override
+-        public YamlConfiguration getBukkitConfig()
+-        {
++        public YamlConfiguration getBukkitConfig() {
+             return configuration;
+         }
+ 
+         @Override
+-        public YamlConfiguration getSpigotConfig()
+-        {
++        public YamlConfiguration getSpigotConfig() {
+             return org.spigotmc.SpigotConfig.config;
+         }
+ 
+         @Override
+-        public YamlConfiguration getPaperConfig()
+-        {
++        public YamlConfiguration getPaperConfig() {
+             return com.destroystokyo.paper.PaperConfig.config;
+         }
+ 
+@@ -1891,8 +1836,7 @@ public final class CraftServer implements Server {
+         }
+     };
+ 
+-    public Spigot spigot()
+-    {
++    public Spigot spigot() {
+         return spigot;
+     }
+ 
+@@ -1938,8 +1882,8 @@ public final class CraftServer implements Server {
+     @Override
+     public boolean reloadCommandAliases() {
+         Set<String> removals = getCommandAliases().keySet().stream()
+-                .map(key -> key.toLowerCase(java.util.Locale.ENGLISH))
+-                .collect(java.util.stream.Collectors.toSet());
++            .map(key -> key.toLowerCase(java.util.Locale.ENGLISH))
++            .collect(java.util.stream.Collectors.toSet());
+         getCommandMap().getKnownCommands().keySet().removeIf(removals::contains);
+         File file = getCommandsConfigFile();
+         try {
+@@ -1970,7 +1914,7 @@ public final class CraftServer implements Server {
+     public com.destroystokyo.paper.profile.PlayerProfile createProfile(@Nullable UUID uuid, @Nullable String name) {
+         Player player = uuid != null ? Bukkit.getPlayer(uuid) : (name != null ? Bukkit.getPlayerExact(name) : null);
+         if (player != null) {
+-            return new com.destroystokyo.paper.profile.CraftPlayerProfile((CraftPlayer)player);
++            return new com.destroystokyo.paper.profile.CraftPlayerProfile((CraftPlayer) player);
+         }
+         return new com.destroystokyo.paper.profile.CraftPlayerProfile(uuid, name);
+     }
+diff --git a/src/main/java/org/bukkit/craftbukkit/Main.java b/src/main/java/org/bukkit/craftbukkit/Main.java
+index ae2c51f5..2fbe6c52 100644
+--- a/src/main/java/org/bukkit/craftbukkit/Main.java
++++ b/src/main/java/org/bukkit/craftbukkit/Main.java
+@@ -142,6 +142,14 @@ public class Main {
+                         .defaultsTo("Unknown Server")
+                         .describedAs("Name");
+                 // Paper end
++
++                // Durian Start
++                acceptsAll(asList("durian", "durian-settings"), "File for durian settings")
++                    .withRequiredArg()
++                    .ofType(File.class)
++                    .defaultsTo(new File("durian.yml"))
++                    .describedAs("Yml file");
++                // Durian end
+             }
+         };
+ 
+-- 
+2.22.0.windows.1
+

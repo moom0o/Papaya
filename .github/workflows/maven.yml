@@ -23,8 +23,8 @@ jobs:
         distribution: 'adopt'
     - name: Build
       run: |
-          git config user.email "test@test.com"
-          git config user.name "test account"
+          git config --global user.email "test@test.com"
+          git config --global user.name "test account"
           ./paper jar
     - name: Upload a Build Artifact
       uses: actions/upload-artifact@v2.1.4

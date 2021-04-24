@@ -22,4 +22,14 @@ jobs:
         java-version: '8'
         distribution: 'adopt'
     - name: Build
-      run: ./paper jar
+      run: |
+          git config user.email "test@test.com"
+          git config user.name "test account"
+          ./paper jar
+    - name: Upload a Build Artifact
+      uses: actions/upload-artifact@v2.1.4
+      with:
+        # Artifact name
+        name: Papaya
+        # A file, directory or wildcard pattern that describes what to upload
+        path: target/paperclip.jar

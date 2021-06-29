@@ -29,8 +29,10 @@ jobs:
           restore-keys: '${{ runner.os }}-m2'
 
       - name: prepare git config
-        run: git config --global user.name "CI Slave Bot"
-
+        run: | 
+         git config --global user.name "CI Slave Bot"
+         git config --global user.email "test@test.com"
+         
       - name: patch paper
         run: ./paper patch
 

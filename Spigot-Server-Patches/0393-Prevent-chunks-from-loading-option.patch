@@ -1,0 +1,64 @@
+From 1b297bfa65e6285797d1e9f6037821e5180748a3 Mon Sep 17 00:00:00 2001
+From: moo <48740106+moom0o@users.noreply.github.com>
+Date: Tue, 29 Jun 2021 14:49:19 -0400
+Subject: [PATCH] Prevent chunks from loading option
+
+
+diff --git a/src/main/java/me/moomoo/papaya/PapayaConfig.java b/src/main/java/me/moomoo/papaya/PapayaConfig.java
+index 15a657772..21ccfa43e 100644
+--- a/src/main/java/me/moomoo/papaya/PapayaConfig.java
++++ b/src/main/java/me/moomoo/papaya/PapayaConfig.java
+@@ -212,7 +212,12 @@ public class PapayaConfig {
+ 
+     public static Boolean preventChunksWorldBorder = true;
+     private static void preventChunksWorldBorder() {
+-        preventChunksWorldBorder = getBoolean("settings.worldborder.prevent-chunks-generating-past-worldborder-lag-exploit", preventChunksWorldBorder);
++        preventChunksWorldBorder = getBoolean("settings.chunks.worldborder.prevent-chunks-generating-past-worldborder-lag-exploit", preventChunksWorldBorder);
++    }
++
++    public static Boolean preventChunks = false;
++    private static void preventChunks() {
++        preventChunks = getBoolean("settings.chunks.prevent-chunks-from-loading", preventChunks);
+     }
+ 
+     public static Boolean removeConsoleSpam = false;
+diff --git a/src/main/java/net/minecraft/server/PlayerChunk.java b/src/main/java/net/minecraft/server/PlayerChunk.java
+index 73cb7dede..db45af739 100644
+--- a/src/main/java/net/minecraft/server/PlayerChunk.java
++++ b/src/main/java/net/minecraft/server/PlayerChunk.java
+@@ -67,19 +67,21 @@ public class PlayerChunk {
+             PlayerChunk.a.debug("Failed to add player. {} already is in chunk {}, {}", entityplayer, Integer.valueOf(this.location.x), Integer.valueOf(this.location.z));
+         } else {
+             if(!PapayaConfig.preventChunksWorldBorder || (location.x <= 1875000 && location.z <= 1875000 && location.x >= -1875001 && location.z >= -1875001)) { // Papaya - Patch retarded lag exploit at world border
+-                if (this.c.isEmpty()) {
+-                    this.i = this.playerChunkMap.getWorld().getTime();
+-                }
++                if(!PapayaConfig.preventChunks){
++                    if (this.c.isEmpty()) {
++                        this.i = this.playerChunkMap.getWorld().getTime();
++                    }
+ 
+-                this.c.add(entityplayer);
+-                // CraftBukkit start - use async chunk io
+-                // if (this.done) {
+-                //     this.sendChunk(entityplayer);
+-                // }
+-                if (this.done) {
+-                    this.sendChunk(entityplayer);
++                    this.c.add(entityplayer);
++                    // CraftBukkit start - use async chunk io
++                    // if (this.done) {
++                    //     this.sendChunk(entityplayer);
++                    // }
++                    if (this.done) {
++                        this.sendChunk(entityplayer);
++                    }
++                    // CraftBukkit end
+                 }
+-                // CraftBukkit end
+             }
+         }
+     }
+-- 
+2.22.0.windows.1
+

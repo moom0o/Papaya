@@ -1,0 +1,127 @@
+From c4e70f5e3b50b9db9a0cfeea57a41ffe64817c23 Mon Sep 17 00:00:00 2001
+From: moo <48740106+moom0o@users.noreply.github.com>
+Date: Tue, 29 Jun 2021 14:25:31 -0400
+Subject: [PATCH] remove unneeded code
+
+
+diff --git a/src/main/java/me/moomoo/papaya/PapayaConfig.java b/src/main/java/me/moomoo/papaya/PapayaConfig.java
+index df57bf4af..15a657772 100644
+--- a/src/main/java/me/moomoo/papaya/PapayaConfig.java
++++ b/src/main/java/me/moomoo/papaya/PapayaConfig.java
+@@ -212,7 +212,7 @@ public class PapayaConfig {
+ 
+     public static Boolean preventChunksWorldBorder = true;
+     private static void preventChunksWorldBorder() {
+-        preventChunksWorldBorder = getBoolean("settings.prevent-chunks-generating-past-worldborder-lag-exploit", preventChunksWorldBorder);
++        preventChunksWorldBorder = getBoolean("settings.worldborder.prevent-chunks-generating-past-worldborder-lag-exploit", preventChunksWorldBorder);
+     }
+ 
+     public static Boolean removeConsoleSpam = false;
+diff --git a/src/main/java/net/minecraft/server/ChunkProviderServer.java b/src/main/java/net/minecraft/server/ChunkProviderServer.java
+index 02aebdb0b..f17b0e781 100644
+--- a/src/main/java/net/minecraft/server/ChunkProviderServer.java
++++ b/src/main/java/net/minecraft/server/ChunkProviderServer.java
+@@ -132,10 +132,8 @@ public class ChunkProviderServer implements IChunkProvider {
+             chunk = this.loadChunk(i, j);
+             if (chunk != null) {
+                 this.chunks.put(ChunkCoordIntPair.a(i, j), chunk);
+-                if(!PapayaConfig.preventChunksWorldBorder || (chunk.locX <= 1875000 && chunk.locZ <= 1875000 && chunk.locX >= -1875000 && chunk.locZ >= -1875000)){ // Papaya - Patch retarded lag exploit at world border
+-                    chunk.loadNearby(this, this.chunkGenerator, true); // CraftBukkit
+-                    chunk.addEntities();
+-                }
++                chunk.loadNearby(this, this.chunkGenerator, true); // CraftBukkit
++                chunk.addEntities();
+             }
+         }
+ 
+@@ -212,11 +210,8 @@ public class ChunkProviderServer implements IChunkProvider {
+             }
+ 
+             this.chunks.put(k, chunk);
+-
+-            if(!PapayaConfig.preventChunksWorldBorder || (chunk.locX <= 1875000 && chunk.locZ <= 1875000 && chunk.locX >= -1875000 && chunk.locZ >= -1875000)){ // Papaya - Patch retarded lag exploit at world border
+-                chunk.loadNearby(this, this.chunkGenerator, true); // CraftBukkit
+-                chunk.addEntities();
+-            }
++            chunk.loadNearby(this, this.chunkGenerator, true); // CraftBukkit
++            chunk.addEntities();
+             world.timings.syncChunkLoadTimer.stopTiming(); // Spigot
+         }
+ 
+diff --git a/src/main/java/net/minecraft/server/PlayerChunk.java b/src/main/java/net/minecraft/server/PlayerChunk.java
+index 68bc086d8..73cb7dede 100644
+--- a/src/main/java/net/minecraft/server/PlayerChunk.java
++++ b/src/main/java/net/minecraft/server/PlayerChunk.java
+@@ -50,14 +50,12 @@ public class PlayerChunk {
+     public PlayerChunk(PlayerChunkMap playerchunkmap, int i, int j) {
+         this.playerChunkMap = playerchunkmap;
+         this.location = new ChunkCoordIntPair(i, j);
+-        if(!PapayaConfig.preventChunksWorldBorder || (location.x <= 1875000 && location.z <= 1875000 && location.x >= -1875000 && location.z >= -1875000)) { // Papaya - Patch retarded lag exploit at world border
+-            // CraftBukkit start
+-            loadInProgress = true;
+-            this.chunk = playerchunkmap.getWorld().getChunkProviderServer().getChunkAt(i, j, loadedRunnable, false);
+-            this.chunkExists = this.chunk != null || ChunkIOExecutor.hasQueuedChunkLoad(playerChunkMap.getWorld(), i, j); // Paper
+-            markChunkUsed(); // Paper - delay chunk unloads
+-            // CraftBukkit end
+-        }
++        // CraftBukkit start
++        loadInProgress = true;
++        this.chunk = playerchunkmap.getWorld().getChunkProviderServer().getChunkAt(i, j, loadedRunnable, false);
++        this.chunkExists = this.chunk != null || ChunkIOExecutor.hasQueuedChunkLoad(playerChunkMap.getWorld(), i, j); // Paper
++        markChunkUsed(); // Paper - delay chunk unloads
++        // CraftBukkit end
+     }
+ 
+     public ChunkCoordIntPair a() {
+@@ -68,20 +66,21 @@ public class PlayerChunk {
+         if (this.c.contains(entityplayer)) {
+             PlayerChunk.a.debug("Failed to add player. {} already is in chunk {}, {}", entityplayer, Integer.valueOf(this.location.x), Integer.valueOf(this.location.z));
+         } else {
+-            if (this.c.isEmpty()) {
+-                this.i = this.playerChunkMap.getWorld().getTime();
+-            }
++            if(!PapayaConfig.preventChunksWorldBorder || (location.x <= 1875000 && location.z <= 1875000 && location.x >= -1875001 && location.z >= -1875001)) { // Papaya - Patch retarded lag exploit at world border
++                if (this.c.isEmpty()) {
++                    this.i = this.playerChunkMap.getWorld().getTime();
++                }
+ 
+-            this.c.add(entityplayer);
+-            // CraftBukkit start - use async chunk io
+-            // if (this.done) {
+-            //     this.sendChunk(entityplayer);
+-            // }
+-            if (this.done) {
+-                this.sendChunk(entityplayer);
++                this.c.add(entityplayer);
++                // CraftBukkit start - use async chunk io
++                // if (this.done) {
++                //     this.sendChunk(entityplayer);
++                // }
++                if (this.done) {
++                    this.sendChunk(entityplayer);
++                }
++                // CraftBukkit end
+             }
+-            // CraftBukkit end
+-
+         }
+     }
+ 
+diff --git a/src/main/java/org/bukkit/craftbukkit/chunkio/ChunkIOProvider.java b/src/main/java/org/bukkit/craftbukkit/chunkio/ChunkIOProvider.java
+index 7f8e2e37d..9dacac4ea 100644
+--- a/src/main/java/org/bukkit/craftbukkit/chunkio/ChunkIOProvider.java
++++ b/src/main/java/org/bukkit/craftbukkit/chunkio/ChunkIOProvider.java
+@@ -56,9 +56,7 @@ class ChunkIOProvider implements AsynchronousExecutor.CallBackProvider<QueuedChu
+         if (queuedChunk.provider.chunkGenerator != null) {
+             queuedChunk.provider.chunkGenerator.recreateStructures(chunk, queuedChunk.x, queuedChunk.z);
+         }
+-        if(!PapayaConfig.preventChunksWorldBorder || (chunk.locX <= 1875000 && chunk.locZ <= 1875000 && chunk.locX >= -1875000 && chunk.locZ >= -1875000)){ // Papaya - Patch retarded lag exploit at world border
+-            chunk.loadNearby(queuedChunk.provider, queuedChunk.provider.chunkGenerator, false);
+-        }
++        chunk.loadNearby(queuedChunk.provider, queuedChunk.provider.chunkGenerator, false);
+         } // Paper
+     }
+ 
+-- 
+2.22.0.windows.1
+

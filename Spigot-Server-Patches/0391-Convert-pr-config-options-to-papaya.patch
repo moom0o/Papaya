@@ -1,0 +1,176 @@
+From fe6a27f67691934fe996ca2f248950cbfb05a0a5 Mon Sep 17 00:00:00 2001
+From: moo <48740106+moom0o@users.noreply.github.com>
+Date: Mon, 28 Jun 2021 20:21:55 -0400
+Subject: [PATCH] Convert pr config options to papaya
+
+
+diff --git a/src/main/java/com/destroystokyo/paper/PaperConfig.java b/src/main/java/com/destroystokyo/paper/PaperConfig.java
+index 45daa37b6..6b3f47a67 100644
+--- a/src/main/java/com/destroystokyo/paper/PaperConfig.java
++++ b/src/main/java/com/destroystokyo/paper/PaperConfig.java
+@@ -335,16 +335,4 @@ public class PaperConfig {
+         }
+     }
+ 
+-    public static int pathfinderGoalSelectionDelay = 3;
+-    private static void pathfinderGoalSelectionDelay() {
+-        pathfinderGoalSelectionDelay = getInt("settings.pathfinder.goal-selection-delay", pathfinderGoalSelectionDelay);
+-    }
+-
+-    public static boolean chunkDupeAllow = false;
+-    public static boolean chunkDupeLog = true;
+-    private static void chunkOverloadDupe() {
+-        chunkDupeAllow = getBoolean("settings.chunk-dupe.allow", chunkDupeAllow);
+-        chunkDupeLog = getBoolean("settings.chunk-dupe.log", chunkDupeLog);
+-    }
+-
+ }
+diff --git a/src/main/java/me/moomoo/papaya/PapayaConfig.java b/src/main/java/me/moomoo/papaya/PapayaConfig.java
+index f4524f143..df57bf4af 100644
+--- a/src/main/java/me/moomoo/papaya/PapayaConfig.java
++++ b/src/main/java/me/moomoo/papaya/PapayaConfig.java
+@@ -185,41 +185,58 @@ public class PapayaConfig {
+     //////////////////////////////////////////////////////////////////////////////////////////////////////////
+     public static String serverBrand = "Papaya";
+     private static void serverBrand() {
+-        serverBrand = getString("settings.server-brand", "Papaya");
++        serverBrand = getString("settings.server-brand", serverBrand);
+     }
+ 
+     public static Integer lightMaxTime = 300;
+     private static void lightMaxTime() {
+-        lightMaxTime = getInt("settings.max-light-time", 300);
++        lightMaxTime = getInt("settings.max-light-time", lightMaxTime);
++    }
++
++    public static Integer maxMapCursors = 10;
++    private static void maxMapCursors() {
++        maxMapCursors = getInt("settings.max-map-cursors", maxMapCursors);
++    }
++
++    public static int pathfinderGoalSelectionDelay = 3;
++    private static void pathfinderGoalSelectionDelay() {
++        pathfinderGoalSelectionDelay = getInt("settings.pathfinder.goal-selection-delay", pathfinderGoalSelectionDelay);
++    }
++
++    public static boolean chunkDupeAllow = false;
++    public static boolean chunkDupeLog = true;
++    private static void chunkOverloadDupe() {
++        chunkDupeAllow = getBoolean("settings.chunk-dupe.allow", chunkDupeAllow);
++        chunkDupeLog = getBoolean("settings.chunk-dupe.log", chunkDupeLog);
+     }
+ 
+     public static Boolean preventChunksWorldBorder = true;
+     private static void preventChunksWorldBorder() {
+-        preventChunksWorldBorder = getBoolean("settings.prevent-chunks-generating-past-worldborder-lag-exploit", true);
++        preventChunksWorldBorder = getBoolean("settings.prevent-chunks-generating-past-worldborder-lag-exploit", preventChunksWorldBorder);
+     }
+ 
+     public static Boolean removeConsoleSpam = false;
+     private static void removeConsoleSpam() {
+-        removeConsoleSpam = getBoolean("messages.remove-console-spam", false);
++        removeConsoleSpam = getBoolean("messages.remove-console-spam", removeConsoleSpam);
+     }
+ 
+     public static Boolean hidePlayerIPS = false;
+     private static void hidePlayerIPS() {
+-        hidePlayerIPS = getBoolean("messages.hide-player-ips-from-console", false);
++        hidePlayerIPS = getBoolean("messages.hide-player-ips-from-console", hidePlayerIPS);
+     }
+ 
+     public static Boolean hidePlayerCoords = false;
+     private static void hidePlayerCoords() {
+-        hidePlayerCoords = getBoolean("messages.hide-player-coords-from-console", false);
++        hidePlayerCoords = getBoolean("messages.hide-player-coords-from-console", hidePlayerCoords);
+     }
+ 
+     public static Boolean removeConnectionMessages = false;
+     private static void removeConnectionMessages() {
+-        removeConnectionMessages = getBoolean("messages.remove-connection-messages-from-console", false);
++        removeConnectionMessages = getBoolean("messages.remove-connection-messages-from-console", removeConnectionMessages);
+     }
+ 
+     public static Boolean removePlayerCommands = false;
+     private static void removePlayerCommands() {
+-        removePlayerCommands = getBoolean("messages.remove-player-command-messages-from-console", false);
++        removePlayerCommands = getBoolean("messages.remove-player-command-messages-from-console", removePlayerCommands);
+     }
+ }
+diff --git a/src/main/java/net/minecraft/server/PathfinderGoalSelector.java b/src/main/java/net/minecraft/server/PathfinderGoalSelector.java
+index 089b6b746..c4653d4fa 100644
+--- a/src/main/java/net/minecraft/server/PathfinderGoalSelector.java
++++ b/src/main/java/net/minecraft/server/PathfinderGoalSelector.java
+@@ -4,6 +4,8 @@ import com.google.common.collect.Sets;
+ import java.util.Iterator;
+ import java.util.Set;
+ import javax.annotation.Nullable;
++
++import me.moomoo.papaya.PapayaConfig;
+ import org.apache.logging.log4j.LogManager;
+ import org.apache.logging.log4j.Logger;
+ import com.destroystokyo.paper.PaperConfig;
+@@ -15,7 +17,7 @@ public class PathfinderGoalSelector {
+     private final Set<PathfinderGoalSelector.PathfinderGoalSelectorItem> c = Sets.newLinkedHashSet();
+     private final MethodProfiler d;
+     private int e;
+-    private int f = PaperConfig.pathfinderGoalSelectionDelay;
++    private int f = PapayaConfig.pathfinderGoalSelectionDelay;
+     private int g;
+ 
+     public PathfinderGoalSelector(MethodProfiler methodprofiler) {
+diff --git a/src/main/java/net/minecraft/server/RegionFile.java b/src/main/java/net/minecraft/server/RegionFile.java
+index a2c133088..80718d6f8 100644
+--- a/src/main/java/net/minecraft/server/RegionFile.java
++++ b/src/main/java/net/minecraft/server/RegionFile.java
+@@ -21,6 +21,7 @@ import java.util.zip.InflaterInputStream;
+ import javax.annotation.Nullable;
+ 
+ import com.destroystokyo.paper.PaperConfig;
++import me.moomoo.papaya.PapayaConfig;
+ 
+ public class RegionFile {
+ 
+@@ -30,8 +31,8 @@ public class RegionFile {
+     private static final boolean ENABLE_EXTENDED_SAVE = Boolean.parseBoolean(System.getProperty("net.minecraft.server.RegionFile.enableExtendedSave", "true"));
+     // Spigot end
+ 
+-    private static final boolean CHUNK_DUPE_ALLOW = PaperConfig.chunkDupeAllow; // paper-1.12.2
+-    private static final boolean CHUNK_DUPE_LOG = PaperConfig.chunkDupeLog; // paper-1.12.2
++    private static final boolean CHUNK_DUPE_ALLOW = PapayaConfig.chunkDupeAllow; // paper-1.12.2
++    private static final boolean CHUNK_DUPE_LOG = PapayaConfig.chunkDupeLog; // paper-1.12.2
+ 
+     private static final byte[] a = new byte[4096];
+     private final File b;private File getFile() { return b; } // Paper - OBFHELPER
+diff --git a/src/main/java/net/minecraft/server/WorldMap.java b/src/main/java/net/minecraft/server/WorldMap.java
+index 74ca2aa5d..4ef60cbe6 100644
+--- a/src/main/java/net/minecraft/server/WorldMap.java
++++ b/src/main/java/net/minecraft/server/WorldMap.java
+@@ -12,6 +12,7 @@ import javax.annotation.Nullable;
+ import java.util.UUID;
+ import java.util.concurrent.atomic.AtomicInteger; // paper-1.12.2
+ 
++import me.moomoo.papaya.PapayaConfig;
+ import org.bukkit.craftbukkit.CraftServer;
+ import org.bukkit.craftbukkit.CraftWorld;
+ import org.bukkit.craftbukkit.map.CraftMapView;
+@@ -325,7 +326,7 @@ public class WorldMap extends PersistentBase {
+             AtomicInteger counter = new AtomicInteger(); // paper-1.12.2
+             WorldMap.this.decorations.forEach((uuid, mapIcon) -> {
+                 counter.getAndIncrement(); // paper-1.12.2
+-                if (counter.get() > 64) return; // paper-1.12.2
++                if (counter.get() > PapayaConfig.maxMapCursors) return; // paper-1.12.2
+                 // If this cursor is for a player check visibility with vanish system
+                 org.bukkit.entity.Player other = org.bukkit.Bukkit.getPlayer(uuid); // Spigot
+                 if (other == null || player.canSee(other)) {
+@@ -363,7 +364,7 @@ public class WorldMap extends PersistentBase {
+             int counter = 0; // paper-1.12.2
+             for ( org.bukkit.map.MapCursor cursor : render.cursors) {
+ 
+-                if (++counter > 64) break; // paper-1.12.2
++                if (++counter > PapayaConfig.maxMapCursors) break; // paper-1.12.2
+                 if (cursor.isVisible()) {
+                     icons.add(new MapIcon(MapIcon.Type.a(cursor.getRawType()), cursor.getX(), cursor.getY(), cursor.getDirection()));
+                 }
+-- 
+2.22.0.windows.1
+

@@ -1,14 +1,14 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From 83d1c71656f33aad979219a47b2455cbaf237cdc Mon Sep 17 00:00:00 2001
 From: nothub <48992448+nothub@users.noreply.github.com>
 Date: Tue, 25 May 2021 00:42:15 +0200
 Subject: [PATCH] chunk dupe
 
 
 diff --git a/src/main/java/com/destroystokyo/paper/PaperConfig.java b/src/main/java/com/destroystokyo/paper/PaperConfig.java
-index d1001605..4e6e2511 100644
+index b7bb3d03c..45daa37b6 100644
 --- a/src/main/java/com/destroystokyo/paper/PaperConfig.java
 +++ b/src/main/java/com/destroystokyo/paper/PaperConfig.java
-@@ -336,4 +336,11 @@ public class PaperConfig {
+@@ -340,4 +340,11 @@ public class PaperConfig {
          pathfinderGoalSelectionDelay = getInt("settings.pathfinder.goal-selection-delay", pathfinderGoalSelectionDelay);
      }
  
@@ -21,7 +21,7 @@ index d1001605..4e6e2511 100644
 +
  }
 diff --git a/src/main/java/net/minecraft/server/RegionFile.java b/src/main/java/net/minecraft/server/RegionFile.java
-index 542a35d1..a2c13308 100644
+index 542a35d13..a2c133088 100644
 --- a/src/main/java/net/minecraft/server/RegionFile.java
 +++ b/src/main/java/net/minecraft/server/RegionFile.java
 @@ -20,6 +20,8 @@ import java.util.zip.GZIPInputStream;
@@ -60,5 +60,5 @@ index 542a35d1..a2c13308 100644
                  if (!USE_SPIGOT_OVERSIZED_METHOD && !RegionFileCache.isOverzealous()) throw new ChunkTooLargeException(i, j, k1); // Paper - throw error instead
                  org.bukkit.Bukkit.getLogger().log(java.util.logging.Level.WARNING,"Large Chunk Detected: ({0}, {1}) Size: {2} {3}", new Object[]{i, j, k1, this.b});
 -- 
-2.25.1
+2.22.0.windows.1
 

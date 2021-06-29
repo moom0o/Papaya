@@ -26,4 +26,6 @@ Prevent chunks from generating past the world border. Chunks generating past wor
 ### settings.chunk-dupe
 Allow or disallow the chunkdupe
 ### settings.pathfinder.goal-selection-delay
-Something to do with lag, mess around with it if you wish.
+the time in ticks the pathfinding waits until it calculates a new goal, the higher its set, the less often mobs get new pathing instructions
+### settings.chunks.prevent-chunks-from-loading
+Prevent chunks from loading completely, great for auth/queue/limbo servers.

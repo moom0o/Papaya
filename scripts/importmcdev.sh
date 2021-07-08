@@ -124,7 +124,7 @@ import TileEntityEnderChest
 import TileEntityLootable
 import WorldGenStronghold
 import WorldProvider
-
+import IBlockData
 cd "$workdir/Spigot/Spigot-Server/"
 rm -rf nms-patches applyPatches.sh makePatches.sh >/dev/null 2>&1
 $gitcmd add . -A >/dev/null 2>&1

@@ -1,0 +1,57 @@
+From acc84fb08c493234743e173b2507034b84084034 Mon Sep 17 00:00:00 2001
+From: Toshimichi0915 <main@toshimichi.net>
+Date: Sat, 6 Aug 2022 23:38:03 +0900
+Subject: [PATCH] Fix lightingQueue memory leak
+
+
+diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
+index 4060fd274..530841723 100644
+--- a/src/main/java/net/minecraft/server/Chunk.java
++++ b/src/main/java/net/minecraft/server/Chunk.java
+@@ -1535,6 +1535,9 @@ public class Chunk {
+     // Paper start
+     public void runOrQueueLightUpdate(Runnable runnable) {
+         if (this.world.paperConfig.queueLightUpdates) {
++            if (lightingQueue.size() > 32 && lightingQueue.lastFailed) {
++                lightingQueue.clear();
++            }
+             lightingQueue.add(runnable);
+         } else {
+             runnable.run();
+diff --git a/src/main/java/net/minecraft/server/PaperLightingQueue.java b/src/main/java/net/minecraft/server/PaperLightingQueue.java
+index cbb482941..213711dbd 100644
+--- a/src/main/java/net/minecraft/server/PaperLightingQueue.java
++++ b/src/main/java/net/minecraft/server/PaperLightingQueue.java
+@@ -34,6 +34,7 @@ class PaperLightingQueue {
+ 
+     static class LightingQueue extends ArrayDeque<Runnable> {
+         final private Chunk chunk;
++        boolean lastFailed;
+ 
+         LightingQueue(Chunk chunk) {
+             super();
+@@ -52,6 +53,7 @@ class PaperLightingQueue {
+                 return false;
+             }
+             if (isOutOfTime(maxTickTime, startTime)) {
++                lastFailed = true;
+                 return true;
+             }
+             try (Timing ignored = chunk.world.timings.lightingQueueTimer.startTiming()) {
+@@ -59,11 +61,13 @@ class PaperLightingQueue {
+                 while ((lightUpdate = this.poll()) != null) {
+                     lightUpdate.run();
+                     if (isOutOfTime(maxTickTime, startTime)) {
++                        lastFailed = true;
+                         return true;
+                     }
+                 }
+             }
+ 
++            lastFailed = false;
+             return false;
+         }
+ 
+-- 
+2.25.1
+
